@@ -23,8 +23,13 @@ object XLogManager {
     // 是否触发了单次日志上传逻辑
     var isStartSingleLog = false
 
-    fun init(context: Context) {
+    var config: XLogConfig = XLogConfig("sunline_user")
+
+    fun init(context: Context, config: XLogConfig? = null) {
         sdCard = context.applicationContext.getExternalFilesDir(null)?.absolutePath ?: ""
+        config?.let {
+            this.config = it
+        }
         logPath = "$sdCard/log"
         if (isInit.compareAndSet(false, true)) {
 
@@ -39,13 +44,11 @@ object XLogManager {
             val xlog = Xlog()
 
             Log.setLogImp(xlog)
-            var logFileName = ""
             // todo 这里的开始收集日志要增加触发时机，这里先简单验证一下
             if (BuildConfig.DEBUG) {
                 Log.setConsoleLogOpen(true)
                 Log.appenderFlush()
-                logFileName = "youyu_zero_debug_${context.applicationContext.applicationInfo.processName.replace(".", "_")}"
-                Log.appenderOpen(Xlog.LEVEL_DEBUG, Xlog.AppednerModeAsync, cachePath, logPath, logFileName, 15)
+                Log.appenderOpen(Xlog.LEVEL_DEBUG, Xlog.AppednerModeAsync, cachePath, logPath, this.config.getFileName(context), this.config.cacheDay)
             }
         }
     }
@@ -73,6 +76,7 @@ object XLogManager {
                 if (activityCount <= 0) {
                     // 每次退出app时都写入日志
                     Log.appenderFlush()
+                    if (isStartSingleLog) closeLog()
                 }
             }
 
@@ -97,9 +101,8 @@ object XLogManager {
         }
         Log.setConsoleLogOpen(false)
         Log.appenderFlush()
-        val logFileName = "youyu_zero_release_${context.applicationContext.applicationInfo.processName.replace(".", "_")}"
         // 调低缓存日志的时间，可能是生产日志
-        Log.appenderOpen(Xlog.LEVEL_DEBUG, Xlog.AppednerModeAsync, cachePath, logPath, logFileName, 1)
+        Log.appenderOpen(Xlog.LEVEL_DEBUG, Xlog.AppednerModeAsync, cachePath, logPath, this.config.getFileName(context, true), 1)
     }
 
     fun closeLog() {
