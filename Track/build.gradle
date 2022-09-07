@@ -1,0 +1,69 @@
+plugins {
+    id 'com.android.library'
+    id 'org.jetbrains.kotlin.android'
+    id 'maven-publish'
+}
+android {
+    compileSdk 32
+
+    defaultConfig {
+        minSdk 21
+        targetSdk 32
+
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        consumerProguardFiles "consumer-rules.pro"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+    kotlinOptions {
+        jvmTarget = '1.8'
+    }
+}
+
+dependencies {
+
+    implementation 'androidx.core:core-ktx:1.7.0'
+    implementation 'com.tencent.mars:mars-xlog:1.2.5'
+}
+
+task generateSourcesJar(type: Jar) {
+    from android.sourceSets.main.java.srcDirs
+    classifier 'sources'
+}
+
+publishing {
+    repositories {
+        maven {
+            // 基于版本名称选择不同的仓库地址
+            def releasesRepoUrl = "$buildDir/repos/releases"
+            def snapshotsRepoUrl = "$buildDir/repos/snapshots"
+            // url是必须要配置的
+            url = version.endsWith('SNAPSHOT') ? snapshotsRepoUrl : releasesRepoUrl
+            // 仓库用户名密码
+            credentials {
+                username = "root"
+                password = "root"
+            }
+        }
+    }
+    publications {
+        release(MavenPublication) {
+            groupId = 'com.ljy.track'
+            artifactId = 'track'
+            version = '1.0-SNAPSHOT'
+            // 必须有这个 否则不会上传AAR包
+            afterEvaluate { artifact(tasks.getByName("bundleReleaseAar")) }
+            // 上传source，这样使用方可以看到方法注释
+            artifact generateSourcesJar
+        }
+    }
+}
