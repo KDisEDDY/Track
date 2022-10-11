@@ -10,7 +10,6 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 
 object XLogManager {
-
     private const val TAG = "XLogManager"
     private var sdCard = ""
     private var logPath = ""
@@ -28,7 +27,7 @@ object XLogManager {
     fun init(context: Context, config: XLogConfig? = null) {
         sdCard = context.applicationContext.getExternalFilesDir(null)?.absolutePath ?: ""
         config?.let {
-            this.config = it
+            XLogManager.config = it
         }
         logPath = "$sdCard/log"
         if (isInit.compareAndSet(false, true)) {
@@ -44,11 +43,10 @@ object XLogManager {
             val xlog = Xlog()
 
             Log.setLogImp(xlog)
-            // todo 这里的开始收集日志要增加触发时机，这里先简单验证一下
             if (BuildConfig.DEBUG) {
                 Log.setConsoleLogOpen(true)
                 Log.appenderFlush()
-                Log.appenderOpen(Xlog.LEVEL_DEBUG, Xlog.AppednerModeAsync, cachePath, logPath, this.config.getFileName(context), this.config.cacheDay)
+                Log.appenderOpen(Xlog.LEVEL_DEBUG, Xlog.AppednerModeAsync, cachePath, logPath, XLogManager.config.getFileName(context), XLogManager.config.cacheDay)
             }
         }
     }
@@ -56,6 +54,9 @@ object XLogManager {
     fun registerLifecycleCallback(application: Application) {
         application.registerActivityLifecycleCallbacks(object : Application.ActivityLifecycleCallbacks {
             override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {
+                // 加个兼容逻辑判断
+                if (activityCount < 0) activityCount = 0
+                android.util.Log.d(TAG, "the activity account onCreate $activityCount")
                 activityCount += 1
             }
 
@@ -72,7 +73,6 @@ object XLogManager {
             }
 
             override fun onActivityStopped(activity: Activity) {
-
             }
 
             override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) {
@@ -81,10 +81,15 @@ object XLogManager {
 
             override fun onActivityDestroyed(activity: Activity) {
                 activityCount -= 1
+                android.util.Log.d(TAG, "the activity account onDestroyed $activityCount")
                 if (activityCount <= 0) {
                     android.util.Log.d(TAG, "append flush")
                     // 每次退出app时都写入日志
-                    Log.appenderFlush()
+                    if (isStartSingleLog) {
+                        Log.appenderFlushSync(true)
+                    } else {
+                        Log.appenderFlush()
+                    }
                     closeLog()
                 }
             }
@@ -102,13 +107,11 @@ object XLogManager {
         }
         Log.setConsoleLogOpen(false)
         Log.appenderFlush()
-        // 调低缓存日志的时间，可能是生产日志
-        Log.appenderOpen(Xlog.LEVEL_DEBUG, Xlog.AppednerModeAsync, cachePath, logPath, this.config.getFileName(context), 1)
+        Log.appenderOpen(Xlog.LEVEL_DEBUG, Xlog.AppednerModeAsync, cachePath, logPath, config.getFileName(context), 0)
     }
 
     fun closeLog() {
         Log.appenderClose()
     }
-
 
 }
